@@ -1,7 +1,7 @@
 # imputeDepth
 Nonparametric imputation by data depth
 
-Current folder contains the sources of R-package 'imputeDepth' and files required to reproduce all the experiments and data-connected figures of the manuscript 'Nonparametric imputation by data depth' (2017) by Pavlo Mozharovskyi, Julis Josse, and Francois Husson. Detail descriptions for utilization of the files follow.
+Current folder contains the sources of R-package 'imputeDepth' and files required to reproduce all the experiments and data-connected figures of the manuscript 'Nonparametric imputation by data depth' (2017) by Pavlo Mozharovskyi, Julie Josse, and Francois Husson. Detail descriptions for utilization of the files follow.
 
  - Folder 'imputeDepth' as well as the archive 'imputeDepth_0.1.0.tar.gz' contain sources of the R-package 'imputeDepth', whose functions implement the imputation methods from the manuscript, and which are used in the experiments.
 
