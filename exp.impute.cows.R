@@ -1,10 +1,10 @@
 ################################################################################
-## File:             exp.impute.banknotes.R                                   ##
+## File:             exp.impute.cows.R                                        ##
 ## Created by:       Pavlo Mozharovskyi                                       ##
-## Last revised:     21.07.2018                                               ##
+## Last revised:     22.07.2018                                               ##
 ##                                                                            ##
-## Contains experiments on single depth-based imputation for the Banknotes    ##
-## data set (Figure 6).                                                       ##
+## Contains experiments on single depth-based imputation for the Cows data    ##
+## set (Figure 6).                                                            ##
 ##                                                                            ##
 ################################################################################
 
@@ -17,10 +17,8 @@ library(missMDA)
 library(rrcov)
 library(VIM)
 # Load data
-banknotes.all <- read.table(file = "data//banknotes.dat", 
-                            header = FALSE, sep = ",")
-banknotes.one <- banknotes.all[banknotes.all[,5] == 1,1:3]
-X <- banknotes.one[1:100,]
+cows <- read.table(file = "data//cows.dat", header = TRUE, sep = " ")
+X <- cows[,1:6]
 # Create structures
 ems.depth.Tr2 <- NULL
 ems.depth.zm <- NULL
@@ -35,7 +33,7 @@ ems.mean <- NULL
 # Start study
 n <- nrow(X)
 d <- ncol(X)
-pNA <- 0.15
+pNA <- 0.05
 k <- 500
 # Create structure for times
 times.depths <- matrix(NA, nrow = k, ncol = 4)
@@ -145,7 +143,7 @@ if (nproc > 1){
     times.depths[i,] <- res[[i]]$times
   }
   # Save results
-  save.image(paste("banknotes_k", i, "_",
+  save.image(paste("cows_k", i, "_",
                    gsub(" ", "_", gsub(":", "_", date())), ".RData",
                    sep = ""))
 }else{
@@ -205,7 +203,7 @@ if (nproc > 1){
                                      na.rm = TRUE) / numNA))
     # Save intermediate results
     if (i %% 10 < 1){
-      save.image(paste("banknotes_k", i, "_",
+      save.image(paste("cows_k", i, "_",
                        gsub(" ", "_", gsub(":", "_", date())), ".RData",
                        sep = ""))
     }
@@ -224,7 +222,7 @@ errors <- list(TukeyR2 = ems.depth.Tr2, zonoidM = ems.depth.zm,
                pca1 = ems.regPCA.1, pca2 = ems.regPCA.2,
                knn = ems.knn, forest = ems.forest,
                mean = ems.mean)
-boxplot(errors, main = paste("Banknotes, n = ", n, ", d = ", d, 
+boxplot(errors, main = paste("Cows, n = ", n, ", d = ", d, 
                              ", MCAR ", pNA, ", k = ", i, sep = ""),
         names = c("d.Tuk", "d.zon",
                   "d.Mah", "d.MahR",

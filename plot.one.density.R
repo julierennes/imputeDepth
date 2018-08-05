@@ -1,9 +1,9 @@
 ################################################################################
 ## File:             plot.one.density.R                                       ##
 ## Created by:       Pavlo Mozharovskyi                                       ##
-## Last revised:     23.12.2016                                               ##
+## Last revised:     23.07.2018                                               ##
 ##                                                                            ##
-## Contains the script for plotting imputation density (Figure 3).            ##
+## Contains the script for plotting imputation density (Figure 2, supplement).##
 ##                                                                            ##
 ################################################################################
 

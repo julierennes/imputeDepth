@@ -1,9 +1,9 @@
 ################################################################################
 ## File:             exp.impute.multiple.R                                    ##
 ## Created by:       Pavlo Mozharovskyi                                       ##
-## Last revised:     23.12.2016                                               ##
+## Last revised:     23.07.2018                                               ##
 ##                                                                            ##
-## Contains experiments on multiple depth-based imputation (Tables 5 and 6).  ##
+## Contains experiments on multiple depth-based imputation (Table 6).         ##
 ##                                                                            ##
 ################################################################################
 
@@ -198,8 +198,10 @@ imputeEllImproper <- function(X, num = 5, iter.burnin = 10, iter.skip = 10){
       }
     }
   }
+  # Diagnostics
   # res <- list(Xs = Xs, means = means, cors = cors)
   cat(".\n", sep = "")
+  # Diagnostics
   # return (res)
   return (Xs)
 }
@@ -302,23 +304,26 @@ library(MASS)
 library(mvtnorm)
 library(Amelia)
 library(mice)
+library(missMDA)
 n <- 500
-m <- 5
+m <- 20
 k <- 2000
 noNA <- 0.3
-beta <- c(0.5, 1)
-# beta <- c(0.5, 1, 3)
+# beta <- c(0.5, 1)
+beta <- c(0.5, 1, 3)
 # beta <- c(0.5, 1, 3, -2)
 sd.reg <- 2
 d <- length(beta)
 Xs.T0.Amelia <- list("")
 Xs.T0.mice <- list("")
+Xs.T0.regPCA <- list("")
 Xs.T0.Ell <- list("")
 Xs.true <- list("")
 Xs.miss <- list("")
 # Perform experiments
 betas.T0.Amelia <- NULL
 betas.T0.mice <- NULL
+betas.T0.regPCA <- NULL
 betas.T0.Ell <- NULL
 for (iter in 1:k){
   cat("Iteration ", iter, ": ... ", sep = "")
@@ -345,17 +350,29 @@ for (iter in 1:k){
   Xs.miss[[iter]] <- X.miss
   cat(round(sum(is.na(X.miss))/(n*d) * 100, 2), " % missing ... \n", sep = "")
   # Impute
+  Xs.T0.regPCA.tmp <- MIPCA(X.miss, nboot = m, ncp = 2, 
+                            method.mi = "Bayes")$res.MI
+  Xs.T0.regPCA[[iter]] <- list("")
+  for (sub.iter in 1:m){
+    Xs.T0.regPCA[[iter]][[sub.iter]] <- 
+      data.matrix(Xs.T0.regPCA.tmp[[sub.iter]])
+  }
   Xs.T0.Ell[[iter]] <- imputeEllProper(X.miss, m)
   Xs.T0.Amelia[[iter]] <- amelia(X.miss, m, p2s = 0)$imputations
+  
   mice.iter <- mice(X.miss, m, method = "norm", maxit = 125, printFlag = FALSE)
   Xs.T0.mice[[iter]] <- list("")
   for (sub.iter in 1:m){
     Xs.T0.mice[[iter]][[sub.iter]] <- data.matrix(complete(mice.iter, sub.iter))
   }
-  betas.T0.Amelia <- rbind(betas.T0.Amelia, poolResults(Xs.T0.Amelia[[iter]],
-                                                        beta))
-  betas.T0.mice <- rbind(betas.T0.mice, poolResults(Xs.T0.mice[[iter]], beta))
-  betas.T0.Ell <- rbind(betas.T0.Ell, poolResults(Xs.T0.Ell[[iter]], beta))
+  betas.T0.Amelia <- rbind(betas.T0.Amelia, 
+                           poolResults(Xs.T0.Amelia[[iter]], beta))
+  betas.T0.mice <- rbind(betas.T0.mice, 
+                         poolResults(Xs.T0.mice[[iter]], beta))
+  betas.T0.Ell <- rbind(betas.T0.Ell, 
+                        poolResults(Xs.T0.Ell[[iter]], beta))
+  betas.T0.regPCA <- rbind(betas.T0.regPCA, 
+                           poolResults(Xs.T0.regPCA[[iter]], beta))
   if (iter > 1){
     cat("Amelia:     ", apply(betas.T0.Amelia[,1:d], 2, median, na.rm = TRUE),
         colMeans(betas.T0.Amelia[,(d + 1):(2*d)], na.rm = TRUE),
@@ -368,6 +385,11 @@ for (iter in 1:k){
         apply(betas.T0.mice[,(2*d + 1):(3*d)], 2, median, na.rm = TRUE),
         apply(betas.T0.mice[,(3*d + 1):(4*d)], 2, median, na.rm = TRUE),
         apply(betas.T0.mice[,(4*d + 1):(5*d)], 2, median, na.rm = TRUE), ".\n")
+    cat("regPCA:     ", apply(betas.T0.regPCA[,1:d], 2, median, na.rm = TRUE),
+        colMeans(betas.T0.regPCA[,(d + 1):(2*d)], na.rm = TRUE),
+        apply(betas.T0.regPCA[,(2*d + 1):(3*d)], 2, median, na.rm = TRUE),
+        apply(betas.T0.regPCA[,(3*d + 1):(4*d)], 2, median, na.rm = TRUE),
+        apply(betas.T0.regPCA[,(4*d + 1):(5*d)], 2, median, na.rm = TRUE),".\n")
     cat("Ell:        ", apply(betas.T0.Ell[,1:d], 2, median, na.rm = TRUE),
         colMeans(betas.T0.Ell[,(d + 1):(2*d)], na.rm = TRUE),
         apply(betas.T0.Ell[,(2*d + 1):(3*d)], 2, median, na.rm = TRUE),
@@ -376,16 +398,21 @@ for (iter in 1:k){
   }
 }
 # Save the results
-save.image("Xs_t0_d2_n500_m5_k2000_p30.RData")
+save.image("Xs_t0_d3_n500_m20_k2000_p30.RData")
 # Pool the results
 ests.T0.Amelia <- NULL
 ests.T0.mice <- NULL
+ests.T0.regPCA <- NULL
 ests.T0.Ell <- NULL
 for (iter in 1:k){
-  ests.T0.Amelia <- rbind(ests.T0.Amelia, poolResults(Xs.T0.Amelia[[iter]],
-                                                      beta))
-  ests.T0.mice <- rbind(ests.T0.mice, poolResults(Xs.T0.mice[[iter]], beta))
-  ests.T0.Ell <- rbind(ests.T0.Ell, poolResults(Xs.T0.Ell[[iter]], beta))
+  ests.T0.Amelia <- rbind(ests.T0.Amelia, 
+                          poolResults(Xs.T0.Amelia[[iter]], beta))
+  ests.T0.mice <- rbind(ests.T0.mice, 
+                        poolResults(Xs.T0.mice[[iter]], beta))
+  ests.T0.regPCA <- rbind(ests.T0.regPCA, 
+                          poolResults(Xs.T0.regPCA[[iter]], beta))
+  ests.T0.Ell <- rbind(ests.T0.Ell, 
+                       poolResults(Xs.T0.Ell[[iter]], beta))
 }
 boxplot(ests.T0.Amelia[,1:d])
 grid()
@@ -403,6 +430,11 @@ cat("mice:       ", apply(ests.T0.mice[,1:d], 2, median, na.rm = TRUE),
     apply(ests.T0.mice[,(2*d + 1):(3*d)], 2, median, na.rm = TRUE),
     apply(ests.T0.mice[,(3*d + 1):(4*d)], 2, median, na.rm = TRUE),
     apply(ests.T0.mice[,(4*d + 1):(5*d)], 2, median, na.rm = TRUE), ".\n")
+cat("regPCA:     ", apply(betas.T0.regPCA[,1:d], 2, median, na.rm = TRUE),
+    colMeans(betas.T0.regPCA[,(d + 1):(2*d)], na.rm = TRUE),
+    apply(betas.T0.regPCA[,(2*d + 1):(3*d)], 2, median, na.rm = TRUE),
+    apply(betas.T0.regPCA[,(3*d + 1):(4*d)], 2, median, na.rm = TRUE),
+    apply(betas.T0.regPCA[,(4*d + 1):(5*d)], 2, median, na.rm = TRUE), ".\n")
 cat("Ell:        ", apply(ests.T0.Ell[,1:d], 2, median, na.rm = TRUE),
     colMeans(ests.T0.Ell[,(d + 1):(2*d)], na.rm = TRUE),
     apply(ests.T0.Ell[,(2*d + 1):(3*d)], 2, median, na.rm = TRUE),

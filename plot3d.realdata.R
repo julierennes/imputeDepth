@@ -1,7 +1,7 @@
 ################################################################################
 ## File:             plot3d.realdata.R                                        ##
 ## Created by:       Pavlo Mozharovskyi                                       ##
-## Last revised:     23.12.2016                                               ##
+## Last revised:     23.07.2018                                               ##
 ##                                                                            ##
 ## Contains the script for plotting real data sets in 3D.                     ##
 ##                                                                            ##
@@ -106,26 +106,20 @@ pairs3d <- function(data, col = "black"){
 library(rgl)
 library(compositions)
 # Banknotes
-banknotes.all <- read.table(file = "data_banknotes.dat", header = FALSE,
+banknotes.all <- read.table(file = "data//data_banknotes.dat", header = FALSE,
                             sep = ",")
 banknotes.one <- banknotes.all[banknotes.all[,5] == 1,1:3]
 X <- banknotes.one[1:100,]
 pairs(X)
 plot3d(X, size = 5)
 # Glass
-glass.all <- read.table(file = "glass.dat", header = FALSE, sep = " ")
+glass.all <- read.table(file = "data//glass.dat", header = FALSE, sep = " ")
 glass.nf <- glass.all[glass.all[,10] == 2,1:3]
 X <- glass.nf
 pairs(X)
 plot3d(X, size = 5)
-# Pima
-pima.all <- read.table(file = "pima.dat", header = FALSE, sep = " ")
-pima.yes <- pima.all[pima.all[,8] == "Yes",]
-X <- pima.yes[,2:5]
-pairs(X)
-pairs3d(X)
 # Blood Transfusion
-bloodtransfusion.all <- read.table(file = "bloodtransfusion_gp.dat",
+bloodtransfusion.all <- read.table(file = "data//bloodtransfusion_gp.dat",
                                    header = FALSE, sep = " ")
 bloodtransfusion <- bloodtransfusion.all[,1:3]
 X <- bloodtransfusion

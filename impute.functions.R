@@ -149,4 +149,51 @@ imputeKnn <- function(X, k = -1, ks = 1:15, l = 10){
   k.best <- which.min(errors)
   return (kNN(data.frame(X), k = k.best)[,1:d])
 }
+
+imp.depth.Mahalanobis <- function(X, num.iter = 100, X.start = NULL, alpha = 1,
+                                  mu = NULL, Sigma = NULL){
+  if (!is.null(mu) && !is.null(Sigma)){
+    miss <- which(is.na(X), arr.ind=T)
+    X.prep <- X
+    X.prep <- t(t(X.prep) - mu)
+    Inv.Sigma <- solve(Sigma)
+    miss.rowi <- unique(miss[,1])
+    X.new <- X.prep
+    X.new <- X.new[miss.rowi,,drop=FALSE]
+    X.prep[miss.rowi,] <- t(apply(X.new, 1, imputeEllP, Inv.Sigma))
+    X.prep <- t(t(X.prep) + mu)
+    return(X.prep)
+  }
+  if (is.null(X.start)){
+    X.prep <- X
+    miss.label <- is.na(X.prep)
+    # TODO: The following line is dangerous when each observation has missings
+    X.prep[miss.label] <- matrix(rep(colMeans(X.prep, na.rm = TRUE),
+                                     nrow(X.prep)), nrow = nrow(X.prep),
+                                 byrow = TRUE)[miss.label] +
+      rnorm(n = sum(miss.label), mean = 0, sd = 0.001)
+  }else{
+    X.prep <- X.start
+  }
+  miss <- which(is.na(X), arr.ind=T)
+  for (i in 1:num.iter){
+    if (alpha > 0.99){
+      mu.tmp <- colMeans(X.prep)
+      Sigma.tmp <- cov(X.prep)
+    }else{
+      mcd.est <- covMcd(X.prep, alpha = alpha)
+      mu.tmp <- mcd.est$center
+      Sigma.tmp <- mcd.est$cov
+    }
+    X.prep <- t(t(X.prep) - mu.tmp)
+    Inv.Sigma.tmp <- solve(Sigma.tmp)
+    miss.rowi <- unique(miss[,1])
+    X.new <- X.prep
+    X.new[miss] <- NA
+    X.new <- X.new[miss.rowi,,drop=FALSE]
+    X.prep[miss.rowi,] <- t(apply(X.new, 1, imputeEllP, Inv.Sigma.tmp))
+    X.prep <- t(t(X.prep) + mu.tmp)
+  }
+  return (X.prep)
+}
 # Functions (end) ##############################################################

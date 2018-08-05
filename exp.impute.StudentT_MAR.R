@@ -1,10 +1,10 @@
 ################################################################################
 ## File:             exp.impute.StudentT_MAR.R                                ##
 ## Created by:       Pavlo Mozharovskyi                                       ##
-## Last revised:     23.12.2016                                               ##
+## Last revised:     23.07.2018                                               ##
 ##                                                                            ##
 ## Contains experiments on single depth-based imputation under MAR assumption ##
-## (Figure 5).                                                                ##
+## (Figure 3).                                                                ##
 ##                                                                            ##
 ################################################################################
 
@@ -58,10 +58,12 @@ for (i in 1:k){
   pNA <- numNA / (n * d)
   cumPNA <- cumPNA + pNA
   # Impute
-  X.imp.depth.Tr2 <- imp.depth.halfspace.ex.o(X.miss, 0.5)
-  X.imp.depth.zm <- imp.depth.zonoid.o(X.miss, 1)
-  X.imp.depth.M <- imp.depth.Mahalanobis(X.miss)
-  X.imp.depth.Mr <- imp.depth.Mahalanobis(X.miss, alpha = 0.85)
+  X.imp.depth.Tr2 <- impute.depth(X.miss, depth = "halfspace",
+                                  parMcd.outsiders = 0.5)
+  X.imp.depth.zm <- impute.depth(X.miss, depth = "zonoid")
+  X.imp.depth.M <- impute.depth(X.miss, depth = "Mahalanobis")
+  X.imp.depth.Mr <- impute.depth(X.miss, depth = "Mahalanobis", 
+                                 parMcd.impute = 0.85)
   X.imp.em <- imputeEm(as.matrix(X.miss))
   X.imp.forest <- missForest(X.miss)$ximp
   X.imp.knn <- imputeKnn(X.miss)
@@ -88,29 +90,31 @@ for (i in 1:k){
   ems.mean <- c(ems.mean, sqrt(sum((X.imp.mean - X)^2) / (n * d * pNA)))
   ems.oracle <- c(ems.oracle, sqrt(sum((X.imp.oracle - X)^2) / (n * d * pNA)))
   # Save intermediate results
-  if (i %% 100 < 1){
+  if (i %% 10 < 1){
     save.image(paste("imp_t0-MAR-24_n100-d3-k", i, "_",
                      gsub(" ", "_", gsub(":", "_", date())), ".RData",
                      sep = ""))
   }
   # Calculate statistics
   cat("Iteration", i, "finished. Median RMSEs are:\n")
-  cat("Tur2:", median(ems.depth.Tr2), ", zom:", median(ems.depth.zm),
-      ", Mah:", median(ems.depth.M), ", MahR:", median(ems.depth.Mr),
-      ", em:", median(ems.em), ", for:", median(ems.forest),
-      ", knn:", median(ems.knn), ", pc1:", median(ems.regPCA.1),
-      ", pc2:", median(ems.regPCA.2), ", mean:", median(ems.mean),
-      ", orcl:", median(ems.oracle), ".\n")
+  cat("d.Tuk:", median(ems.depth.Tr2), ", c.zon:", median(ems.depth.zm),
+      ", d.Mah:", median(ems.depth.M), ", d.MahR:", median(ems.depth.Mr),
+      ", EM:", median(ems.em), ", rPCA1:", median(ems.regPCA.1),
+      ", rPCA2:", median(ems.regPCA.2), ", kNN:", median(ems.knn), 
+      ", RF:", median(ems.forest), ", mean:", median(ems.mean), 
+      ", orcl", median(ems.oracle), ".\n")
 }
 errors <- list(TukeyR2 = ems.depth.Tr2, zonoidM = ems.depth.zm,
                Mahalanobis = ems.depth.M, MahalanobisR = ems.depth.Mr,
                em = ems.em,
-               forest = ems.forest, knn = ems.knn,
                pca1 = ems.regPCA.1, pca2 = ems.regPCA.2,
+               knn = ems.knn, forest = ems.forest,
                mean = ems.mean, oracle = ems.oracle)
-boxplot(errors, main = paste("t0 100-3, MAR ", pNA, ", k = ", i, sep = ""),
-        names = c("Tur2", "zom",
-                  "Mah", "MahR",
-                  "em", "for", "knn", "pc1", "pc2",
+boxplot(errors, main = paste("Large data, n = ", n, ", d = ", d, ", MCAR ", 
+                             pNA, ", k = ", i, sep = ""),
+        names = c("d.Tuk", "d.zon",
+                  "d.Mah", "d.MahR",
+                  "EM", "rPCA1", "rPCA2", "kNN", "RF",
                   "mean", "orcl"),
         ylab = "RMSE")
+grid()

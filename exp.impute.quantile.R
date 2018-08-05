@@ -1,9 +1,9 @@
 ################################################################################
 ## File:             exp.imp.quantile.R                                       ##
 ## Created by:       Pavlo Mozharovskyi                                       ##
-## Last revised:     23.12.2016                                               ##
+## Last revised:     23.07.2018                                               ##
 ##                                                                            ##
-## Contains experiments on stochastic depth-based imputation (Table 4).       ##
+## Contains experiments on stochastic depth-based imputation (Table 5).       ##
 ##                                                                            ##
 ################################################################################
 
@@ -193,14 +193,18 @@ imputeEllImproper <- function(X, num = 5, iter.burnin = 10, iter.skip = 10){
         iter.sample <- floor((iter - iter.burnin) / (iter.skip + 1)) + 1
         Xs[[iter.sample]] <- X.prep
         cat(paste("Sample ", iter.sample, " taken ... ", sep = ""))
+        # Diagnostics
         # lines(cbind(depths, 1:length(depths)/length(depths)), col = "orange")
       }else{
+        # Diagnostics
         # lines(cbind(depths, 1:length(depths)/length(depths)), col = "green")
       }
     }
   }
+  # Diagnostics
   # res <- list(Xs = Xs, means = means, cors = cors)
   cat(".\n", sep = "")
+  # Diagnostics
   # return (res)
   return (Xs)
 }
@@ -282,6 +286,7 @@ imputeEmImproper <- function(X, num = 5){
   Xs <- list("")
   for (iter in 1:num){
     X.prep <- imp.norm(s, thetahat, X)
+    # Diagnostics
     # mu.tmp <- colMeans(X.prep)
     # Sigma <- cov(X.prep)
     # Inv.Sigma <- solve(Sigma)
@@ -291,6 +296,186 @@ imputeEmImproper <- function(X, num = 5){
     Xs[[iter]] <- X.prep
   }
   return (Xs)
+}
+
+imputeRegPcaImproper <- function(X, ncp = 2, scale = TRUE, 
+                                 method = c("Regularized", "EM"), 
+                                 threshold = 1e-04, nboot = 100, 
+                                 method.mi = "Boot", Lstart = 1000, 
+                                 L = 100, verbose = FALSE){
+  Estim_param <- function(X, scale = F, S, method = "Regularized", 
+                          threshold = 10^(-6)) {
+    if (sum(is.na(X)) > 0) {
+      missing <- which(is.na(X))
+      impute.data <- imputePCA(X, scale = scale, ncp = S, 
+                               method = method, 
+                               threshold = threshold)$completeObs
+      reference <- FactoMineR::PCA(impute.data, scale.unit = scale, 
+                                   graph = FALSE, ncp = S)
+      rec <- reconst(reference, S)
+      rec.pca <- as.matrix(X)
+      rec.pca[missing] <- rec[missing]
+      sd_resid <- apply(impute.data, 2, sd)
+      resid <- rec.pca - rec
+      if (scale) {
+        resid <- sweep(resid, 2, sd_resid, FUN = "/")
+      }
+      sigma <- sqrt((sum((resid[-missing])^2)) / 
+                      (nrow(X) * ncol(X) - (length(missing) + ncol(X) + S * 
+                                              (nrow(X) - 1 + ncol(X) - S))))
+    }
+    else {
+      reference <- FactoMineR::PCA(X, scale.unit = scale, 
+                                   graph = FALSE, ncp = S)
+      rec <- reconst(reference, ncp = S)
+      rec.pca <- as.matrix(X)
+      sd_resid <- apply(X, 2, sd)
+      resid <- rec.pca - rec
+      if (scale) {
+        resid <- sweep(resid, 2, sd_resid, FUN = "/")
+      }
+      sigma <- sqrt((sum((resid)^2)) / 
+                      (nrow(X) * ncol(X) - (ncol(X) + S * 
+                                              (nrow(X) - 1 + ncol(X) - S))))
+    }
+    phi <- diag(c((reference$eig[1:S, 1] - sigma^2)/reference$eig[1:S,1], 
+                  rep(0, min(nrow(X) - 1, ncol(X)) - S)))
+    estimation <- list(sigma = sigma, phi = phi)
+    return(estimation)
+  }
+  BayesMIPCA <- function(X.na, nboot = 100, ncp, L = 100, verbose = T, 
+                         Lstart = 1000, scale = F) {
+    if (verbose) {
+      cat("Multiple Imputation using Bayesian PCA using", 
+          nboot, "imputed arrays", "\n")
+    }
+    if (scale) {
+      sd.init <- apply(X.na, 2, FUN = sd, na.rm = T)
+      X.na <- sweep(X.na, 2, sd.init, FUN = "/")
+    }
+    res.MI <- res.Over <- list()
+    Mean <- colMeans(X.na, na.rm = TRUE)
+    X <- sweep(X.na, 2, Mean, FUN = "-")
+    X.tild <- imputePCA(X, ncp = ncp, method = "Regularized", 
+                        scale = F)$fitt
+    sigma <- Estim_param(X = X, S = ncp)[["sigma"]]
+    for (l in 1:(Lstart + nboot * L)) {
+      X[is.na(X.na)] <- X.tild[is.na(X.na)] + rnorm(sum(is.na(X.na)), 
+                                                    mean = 0, sd = sigma)
+      X <- sweep(X, 2, Mean, FUN = "+")
+      if (l %in% c(Lstart + (1:nboot) * L)) {
+        res.MI[[(l - Lstart)/L]] <- X
+        res.Over[[(l - Lstart)/L]] <- sweep(X.tild + 
+                                              rnorm(nrow(X.na) * ncol(X.na), 
+                                                    mean = 0, sd = sigma), 2, 
+                                            Mean, FUN = "+")
+        if (verbose) {
+          cat(paste((l - Lstart)/L, "...", sep = ""))
+        }
+      }
+      Mean <- colMeans(X)
+      X <- sweep(X, 2, Mean, FUN = "-")
+      res.pca <- FactoMineR::PCA(X, ncp = ncol(X), scale.unit = F, 
+                                 graph = F)
+      param <- Estim_param(X = X, S = ncp)
+      phi <- param[["phi"]]
+      sigma <- param[["sigma"]]
+      Moy <- res.pca[["svd"]][["U"]] %*% diag(res.pca[["svd"]][["vs"]]) %*% 
+        phi %*% t(res.pca[["svd"]][["V"]])
+      Var <- diag(rep(sigma^2/min(nrow(X) - 1, ncol(X)) * 
+                        sum(phi), ncol(X)))
+      X.tild <- Moy + rmvnorm(nrow(X.na), sigma = Var)
+    }
+    class(res.MI) <- "BayesMIPCA"
+    if (scale) {
+      res.MI <- lapply(res.MI, FUN = function(res) {
+        sweep(res, 2, sd.init, FUN = "*")
+      })
+      res.Over <- lapply(res.Over, FUN = function(res) {
+        sweep(res, 2, sd.init, FUN = "*")
+      })
+    }
+    call <- list(X = X.na, nboot = nboot, ncp = ncp, L = L, 
+                 verbose = verbose, Lstart = Lstart, scale = scale)
+    return(list(res.MI = lapply(res.MI, as.data.frame), res.Over = res.Over, 
+                call = call))
+  }
+  if (ncp == 0) 
+    stop("No variability can be computed with ncp=0 dimension")
+  res.Over <- list()
+  method <- match.arg(method, c("Regularized", "regularized", 
+                                "EM", "em"), several.ok = T)[1]
+  method <- tolower(method)
+  missing <- which(is.na(X))
+  inputeData <- imputePCA(X, scale = scale, ncp = ncp, method = method, 
+                          threshold = threshold)$completeObs
+  if (method.mi %in% c("Bayes", "bayes")) {
+    res <- BayesMIPCA(X.na = X, nboot = nboot, ncp = ncp, 
+                      L = L, verbose = verbose, Lstart = Lstart, scale = scale)
+    res.MI <- res$res.MI
+    res.Over <- res$res.Over
+  }
+  else if (method.mi %in% c("Boot", "boot")) {
+    if (verbose) {
+      cat("Multiple Imputation using bootstrap", method, 
+          "PCA using", nboot, "imputed arrays", "\n")
+    }
+    reference <- FactoMineR::PCA(inputeData, scale.unit = scale, 
+                                 graph = FALSE, ncp = ncp)
+    rec <- FactoMineR::reconst(reference, ncp)
+    rec.pca <- as.matrix(X)
+    rec.pca[missing] <- rec[missing]
+    resid <- rec.pca - rec
+    sdResid <- apply(inputeData, 2, sd)
+    if (scale) 
+      resid <- t(t(resid)/sdResid)
+    sigma <- sqrt((sum((resid[-missing])^2)) / 
+                    (nrow(X) * ncol(X) - (length(missing) + ncol(X) + ncp * 
+                                            (nrow(X) - 1 + ncol(X) - ncp))))
+    rownames(rec.pca) <- rownames(X)
+    res.MI <- list()
+    for (i in 1:nboot) {
+      if (verbose) {
+        cat(paste(i, "...", sep = ""))
+      }
+      resid.star <- matrix(rnorm(nrow(X) * ncol(X), 0, 
+                                 sigma), ncol = ncol(X))
+      if (scale) 
+        resid.star <- t(t(resid.star) * sdResid)
+      resid.star[missing] <- NA
+      # Pavlo: To do it improper
+      # Xstar <- rec + resid.star - matrix(mean(resid.star, na.rm = TRUE), 
+      #                                    ncol = ncol(resid.star), 
+      #                                    nrow = nrow(resid.star))
+      Xstar <- rec
+      Xstar[missing] <- NA
+      acpboot <- FactoMineR::PCA(imputePCA(Xstar, scale = scale, 
+                                           ncp = ncp, method = method, 
+                                           threshold = threshold)$completeObs, 
+                                 scale.unit = scale, ncp = ncp, graph = FALSE)
+      residstar2 <- matrix(rnorm(nrow(X) * ncol(X), 0, 
+                                 sigma), ncol = ncol(X))
+      if (scale) 
+        residstar2 <- t(t(residstar2) * sdResid)
+      rec.pca[missing] <- (reconst(acpboot, ncp) + residstar2)[missing]
+      res.Over[[i]] <- reconst(acpboot, ncp) + residstar2
+      res.MI[[i]] <- rec.pca
+      dimnames(res.MI[[i]]) = list(rownames(X), colnames(X))
+      res.MI[[i]] <- as.data.frame(res.MI[[i]])
+    }
+  }
+  else {
+    stop("method.mi is misspecified")
+  }
+  if (verbose) {
+    cat("\ndone!")
+  }
+  result = list(res.MI = res.MI, res.imputePCA = inputeData, 
+                call = list(X = X, ncp = ncp, missing = missing, nboot = nboot, 
+                            scale = scale, L = L, verbose = verbose, Lstart = Lstart, 
+                            res.Over = res.Over))
+  class(result) <- c("MIPCA", "list")
+  return(result)
 }
 
 poolResults <- function(Xs, beta.true){
@@ -351,25 +536,23 @@ library(mvtnorm)
 library(Amelia)
 library(mice)
 library(norm)
+library(missMDA)
+library(FactoMineR)
 n <- 500
 m <- 1
-k <- 1000
+k <- 2000
 noNA <- 0.3
-df <- 0
+df <- 3
 d <- 4
-probs = c(0.75, 0.85, 0.90, 0.95, 0.975)
+probs = c(0.5, 0.75, 0.85, 0.90, 0.95, 0.975, 0.99, 0.995)
 Xs.T0.norm <- list("")
-# Xs.T0.Amelia <- list("")
-# Xs.T0.mice <- list("")
-# Xs.T0.Ell <- list("")
+Xs.T0.regPCA <- list("")
 Xs.T0.EllImproper <- list("")
 Xs.true <- list("")
 Xs.miss <- list("")
 # Perform experiments
 qs.T0.norm <- NULL
-# qs.T0.Amelia <- NULL
-# qs.T0.mice <- NULL
-# qs.T0.Ell <- NULL
+qs.T0.regPCA <- NULL
 qs.T0.EllImproper <- NULL
 # Initialize random generator
 rngseed(1234567)
@@ -408,19 +591,28 @@ for (iter in 1:k){
                                                  iter.burnin = 10,
                                                  iter.skip = 10)
   Xs.T0.norm[[iter]] <- imputeEmImproper(X = X.miss, num = m)
+  Xs.T0.regPCA[[iter]] <- imputeRegPcaImproper(X = X.miss, nboot = m)
   qs.T0.EllImproper <- rbind(qs.T0.EllImproper,
                              quantile(x = Xs.T0.EllImproper[[iter]][[1]][,1],
                                       probs = probs,
                                       names = FALSE))
+  qs.T0.EllImproper <- rbind(qs.T0.EllImproper, probs)
+  qs.T0.regPCA <- rbind(qs.T0.regPCA,
+                      quantile(x = Xs.T0.regPCA[[iter]]$res.MI[[1]][,1],
+                               probs = probs,
+                               names = FALSE))
   qs.T0.norm <- rbind(qs.T0.norm,
                       quantile(x = Xs.T0.norm[[iter]][[1]][,1],
                                probs = probs,
                                names = FALSE))
   cat("done: norm:        ", apply(qs.T0.norm, 2, median, na.rm = TRUE), "\n")
+  cat("done: regPCA       ", apply(qs.T0.regPCA, 2, median, na.rm = TRUE), "\n")
   cat("done: EllIpmroper: ", apply(qs.T0.EllImproper, 2, median, na.rm = TRUE),
       "\n")
 }
 boxplot(qs.T0.norm, main = "norm", names = paste(probs, sep = ""))
+grid()
+boxplot(qs.T0.regPCA, main = "regPCA", names = paste(probs, sep = ""))
 grid()
 boxplot(qs.T0.EllImproper, main = "EllImproper", names = paste(probs, sep = ""))
 grid()

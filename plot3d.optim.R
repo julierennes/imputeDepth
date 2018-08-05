@@ -1,10 +1,10 @@
 ################################################################################
 ## File:             plot3d.optim.R                                           ##
 ## Created by:       Pavlo Mozharovskyi                                       ##
-## Last revised:     23.12.2016                                               ##
+## Last revised:     23.07.2018                                               ##
 ##                                                                            ##
 ## Contains the script for plotting 3D-pictures of the function to be         ##
-## optimized for conditional depth maximization (Figure 4).                   ##
+## optimized for conditional depth maximization (Figure 1, supplement).       ##
 ##                                                                            ##
 ################################################################################
 

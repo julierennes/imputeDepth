@@ -1,7 +1,7 @@
 ################################################################################
 ## File:             exp.impute.lowrank.R                                     ##
 ## Created by:       Pavlo Mozharovskyi                                       ##
-## Last revised:     23.12.2016                                               ##
+## Last revised:     22.07.2018                                               ##
 ##                                                                            ##
 ## Contains experiments on single depth-based imputation of a low-rank model  ##
 ## under MCAR assumption (Table 3).                                           ##
@@ -46,10 +46,16 @@ for (i in 1:k){
   X.miss <- prodNA(X, pNA, entire.rows = FALSE)
   cat(sum(is.na(X.miss)), " NAs produced\n")
   # Impute
-  X.imp.depth.Tr2 <- imp.depth.halfspace.ex.o(X.miss, 0.5)
-  X.imp.depth.zm <- imp.depth.zonoid.o(X.miss, 1)
-  X.imp.depth.M <- imp.depth.Mahalanobis(X.miss)
-  X.imp.depth.Mr <- imp.depth.Mahalanobis(X.miss, alpha = 0.85)
+  X.imp.depth.Tr2 <- impute.depth(X.miss, depth = "Tukey",
+                                  depth.outsiders = "spatial",
+                                  parMcd.outsiders = 0.5)
+  X.imp.depth.zm <- impute.depth(X.miss, depth = "zonoid",
+                                 depth.outsiders = "spatial",
+                                 parMcd.outsiders = 1)
+  X.imp.depth.M <- impute.depth(X.miss, depth = "Mahalanobis",
+                                parMcd.impute = 1)
+  X.imp.depth.Mr <- impute.depth(X.miss, depth = "Mahalanobis",
+                                 parMcd.impute = 0.85)
   X.imp.em <- imputeEm(as.matrix(X.miss))
   X.imp.forest <- missForest(X.miss)$ximp
   X.imp.knn <- imputeKnn(X.miss)
@@ -81,21 +87,23 @@ for (i in 1:k){
   }
   # Calculate statistics
   cat("Iteration", i, "finished. Median RMSEs are:\n")
-  cat("Tur2:", median(ems.depth.Tr2), ", zom:", median(ems.depth.zm),
-      ", Mah:", median(ems.depth.M), ", MahR:", median(ems.depth.Mr),
-      ", em:", median(ems.em), ", for:", median(ems.forest),
-      ", knn:", median(ems.knn), ", pc1:", median(ems.regPCA.1),
-      ", pc2:", median(ems.regPCA.2), ", mean:", median(ems.mean), ".\n")
+  cat("d.Tuk:", median(ems.depth.Tr2), ", d.zon:", median(ems.depth.zm),
+      ", d.Mah:", median(ems.depth.M), ", d.MahR:", median(ems.depth.Mr),
+      ", EM:", median(ems.em), ", rPCA1:", median(ems.regPCA.1),
+      ", rPCA2:", median(ems.regPCA.2), ", kNN:", median(ems.knn), 
+      ", RF:", median(ems.forest), ", mean:", median(ems.mean), ".\n")
 }
 errors <- list(TukeyR2 = ems.depth.Tr2, zonoidM = ems.depth.zm,
                Mahalanobis = ems.depth.M, MahalanobisR = ems.depth.Mr,
                em = ems.em,
-               forest = ems.forest, knn = ems.knn,
                pca1 = ems.regPCA.1, pca2 = ems.regPCA.2,
+               knn = ems.knn, forest = ems.forest,
                mean = ems.mean)
-boxplot(errors, main = paste("t1 lowrank 50-3, MCAR ", pNA, ", k = ", i, sep = ""),
-        names = c("Tur2", "zom",
-                  "Mah", "MahR",
-                  "em", "for", "knn", "pc1", "pc2",
+boxplot(errors, main = paste("t1 lowrank 50-3, MCAR ", pNA, ", k = ", i, 
+                             sep = ""),
+        names = c("d.Tuk", "d.zon",
+                  "d.Mah", "d.MahR",
+                  "EM", "rPCA1", "rPCA2", "kNN", "RF", 
                   "mean"),
         ylab = "RMSE")
+grid()
